@@ -4,6 +4,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 import UiPanel from "@/components/UiPanel.vue";
+import KeyHelpmer from "@/components/KeyHelper.vue";
 
 const waitms = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const loader = new GLTFLoader();
@@ -42,6 +43,7 @@ export default {
   name: "HomeView",
   components: {
     UiPanel,
+    KeyHelpmer,
   },
   data() {
     return {
@@ -266,6 +268,9 @@ export default {
 
         case "KeyP":
           this.addPart("platform");
+          break;
+        case "KeyH":
+          this.addPart("platformhole");
           break;
 
         case "KeyO":
@@ -531,6 +536,7 @@ export default {
         @update-pos="updateCursor"
         ref="uiPanel"
       />
+      <KeyHelpmer />
     </div>
   </div>
 </template>
