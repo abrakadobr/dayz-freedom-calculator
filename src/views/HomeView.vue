@@ -14,7 +14,7 @@ const jclone = (v) => JSON.parse(JSON.stringify(v));
 const load = (name) =>
   new Promise((resolve) => {
     loader.load(
-      "/glb/" + name + ".glb",
+      "./glb/" + name + ".glb",
       (gltf) => {
         const c = gltf.scene.children[0];
         resolve(c);
