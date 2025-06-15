@@ -48,6 +48,7 @@ export default {
   data() {
     return {
       cursor: [0, 1, 0],
+      tool: null,
       lock: null,
       selection: null,
       construction: {},
@@ -331,7 +332,8 @@ export default {
     addPart(part) {
       const pm = ["rampup", "rampdown"].includes(part) ? "ramp" : part;
       if (!d3.models[pm]) return;
-      const m = d3.materials.wood.clone();
+      const m = d3.models[pm].material.clone();
+      m.transparent = true
       const mesh = new THREE.Mesh(d3.models[pm].geometry, m);
       mesh.scale.set(0.5, 0.5, 0.5);
       mesh.position.set(
@@ -432,12 +434,19 @@ export default {
     },
     setColor(color) {
       if (!this.selection) return;
+      const m = this.selection.material
+      if (color === "clear") m.emissiveIntensity = 0
+      else m.emissiveIntensity = 0.1
+      if (color === 'green') m.emissive = new THREE.Color(0x00ff00)
+      if (color === 'red') m.emissive = new THREE.Color(0xff0000)
+      /*
       let m = d3.materials.wood;
       if (color === "clear") m = d3.materials.wood;
       if (color === "red") m = d3.materials.red;
       if (color === "green") m = d3.materials.green;
       this.selection.material = m.clone();
       this.construction[this.selection.uuid].color = color;
+      */
     },
     toggleFloor(l) {
       if (!this.hiddenFloors.includes(l)) this.hiddenFloors.push(l);
@@ -452,7 +461,7 @@ export default {
         if (!part) return;
         if (this.hiddenFloors.includes(f)) {
           part.layers.disable(1);
-          part.material.opacity = 0.1;
+          part.material.opacity = 0.05;
         } else {
           part.layers.enable(1);
           part.material.opacity = 1;
@@ -521,21 +530,9 @@ export default {
   <div class="home wh-100">
     <div class="view-3d wh-100 position-relative" ref="v3d">
       <canvas @click="onClick" ref="canvas" @mousemove="onMove" />
-      <UiPanel
-        :construction="construction"
-        :selected="selection ? selection.uuid : null"
-        @remove="removeSelection"
-        @rotate="rotateSelection"
-        @deselect="onDeselect"
-        @add-part="addPart"
-        :cursor="cursor"
-        @color="setColor"
-        @save="save"
-        @load-file="loadFile"
-        @toggle-floor="toggleFloor"
-        @update-pos="updateCursor"
-        ref="uiPanel"
-      />
+      <UiPanel :construction="construction" :selected="selection ? selection.uuid : null" @remove="removeSelection"
+        @rotate="rotateSelection" @deselect="onDeselect" @add-part="addPart" :cursor="cursor" @color="setColor"
+        @save="save" @load-file="loadFile" @toggle-floor="toggleFloor" @update-pos="updateCursor" ref="uiPanel" />
       <KeyHelpmer />
     </div>
   </div>
