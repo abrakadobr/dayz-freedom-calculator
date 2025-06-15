@@ -1,4 +1,17 @@
 <script>
+import CursorIcon from '@/assets/icons/cursor.svg'
+import FloorsIcon from '@/assets/icons/floors.svg'
+import NailsIcon from '@/assets/icons/nails.svg'
+import PlanksIcon from '@/assets/icons/planks.svg'
+import CodelockIcon from '@/assets/icons/codelock.svg'
+
+import SaveIcon from '@/assets/icons/save.svg'
+import LoadIcon from '@/assets/icons/load.svg'
+import NewIcon from '@/assets/icons/new.svg'
+
+import UpIcon from '@/assets/icons/up.svg'
+import DownIcon from '@/assets/icons/down.svg'
+
 export default {
   name: "UiPanel",
   emits: [
@@ -10,7 +23,22 @@ export default {
     "toggleFloor",
     "save",
     "loadFile",
+    "reset",
+    "up",
+    "down"
   ],
+  components: {
+    UpIcon,
+    DownIcon,
+    SaveIcon,
+    LoadIcon,
+    NewIcon,
+    CursorIcon,
+    NailsIcon,
+    PlanksIcon,
+    CodelockIcon,
+    FloorsIcon,
+  },
   props: {
     cursor: {
       type: Array,
@@ -64,24 +92,18 @@ export default {
   },
   computed: {
     parts() {
-      return Object.keys(this.construction).length;
+      return Object.values(this.construction).filter(p => !this.floors.includes(p.position[1]));
     },
     resources() {
       const res = {
         nails: 0,
         planks: 0,
-        woods: 0,
-        metal: 0,
-        wires: 0,
         codelocks: 0,
       };
-      Object.values(this.construction).forEach((p) => {
+      this.parts.forEach((p) => {
         if (p.part === "door") {
           res.nails += 28;
           res.planks += 8;
-          res.woods += 2;
-          res.metal += 2;
-          res.wires += 1;
           res.codelocks += 1;
         } else {
           res.nails += 20;
@@ -110,6 +132,114 @@ export default {
 };
 </script>
 
+<template>
+  <div class="ui-panel">
+    <div class="tool-group">
+      <div class="tool-button">
+        <FloorsIcon />
+      </div>
+      <template v-for="l of layers" :key="l">
+        <button @click="$emit('toggleFloor', l)" class="tool-button" :class="{ 'selected': !floors.includes(l) }">
+          {{ l }}
+        </button>
+      </template>
+    </div>
+    <div class="tool-group">
+      <div class="tool-button">
+        <PlanksIcon />
+      </div>
+      <div class="tool-button selected tool-button-w2">
+        {{ resources.planks }}
+      </div>
+      <div class="tool-button">
+        <NailsIcon />
+      </div>
+      <div class="tool-button selected tool-button-w2">
+        {{ resources.nails }}
+      </div>
+      <div class="tool-button">
+        <CodelockIcon />
+      </div>
+      <div class="tool-button selected tool-button-w2">
+        {{ resources.codelocks }}
+      </div>
+    </div>
+  </div>
+  <div class="bottom-panel">
+    <div class="tool-group">
+      <button @click="$emit('up')" class="tool-button">
+        <UpIcon />
+      </button>
+      <button @click="$emit('down')" class="tool-button">
+        <DownIcon />
+      </button>
+    </div>
+    <div class="tool-group">
+      <div class="tool-button">
+        <CursorIcon />
+      </div>
+      <div class="tool-button">
+        {{ cursor[0] }}
+      </div>
+      <div class="tool-button">
+        {{ cursor[1] }}
+      </div>
+      <div class="tool-button">
+        {{ cursor[2] }}
+      </div>
+    </div>
+    <div class="tool-group">
+      <button @click="$emit('save')" class="tool-button">
+        <SaveIcon />
+      </button>
+      <label for="load-file" class="tool-button">
+        <LoadIcon />
+        <input type="file" id="load-file" class="d-none" accept=".json" ref="fileInput"
+          @change="$emit('loadFile', $event.target.files[0])" />
+      </label>
+      <button @click="$emit('reset')" class="tool-button">
+        <NewIcon />
+      </button>
+    </div>
+  </div>
+</template>
+
+<style lang="scss" scoped>
+.tool-button-w2 {
+  width: 64px;
+}
+
+.bottom-panel {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: row;
+  z-index: 100;
+
+  .tool-button {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}
+
+.ui-panel {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: row;
+  z-index: 100;
+
+  .tool-button {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}
+</style>
+<!--
 <template>
   <div class="ui-panel card col-auto m-2 position-absolute end-0 top-0">
     <div class="card-body">
@@ -360,3 +490,4 @@ export default {
     </div>
   </div>
 </template>
+-->

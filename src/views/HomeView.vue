@@ -5,6 +5,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 import UiPanel from "@/components/UiPanel.vue";
 import KeyHelpmer from "@/components/KeyHelper.vue";
+import ToolBar from "@/components/ToolBar.vue";
 
 const waitms = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const loader = new GLTFLoader();
@@ -26,6 +27,25 @@ const load = (name) =>
     );
   });
 
+const removeObject3D = object3D => {
+  if (!(object3D instanceof THREE.Object3D)) return false;
+
+  // for better memory management and performance
+  if (object3D.geometry) object3D.geometry.dispose();
+
+  if (object3D.material) {
+    if (object3D.material instanceof Array) {
+      // for better memory management and performance
+      object3D.material.forEach(material => material.dispose());
+    } else {
+      // for better memory management and performance
+      object3D.material.dispose();
+    }
+  }
+  object3D.removeFromParent(); // the parent might be the scene or another Object3D, but it is sure to be removed this way
+  return true;
+}
+
 const d3 = {
   scene: null,
   camera: null,
@@ -37,6 +57,7 @@ const d3 = {
   lights: {},
   models: {},
   materials: {},
+  holo: null
 };
 
 export default {
@@ -44,15 +65,17 @@ export default {
   components: {
     UiPanel,
     KeyHelpmer,
+    ToolBar,
   },
   data() {
     return {
       cursor: [0, 1, 0],
-      tool: null,
+      tool: 'select',
       lock: null,
       selection: null,
       construction: {},
       hiddenFloors: [],
+      holoR: 0,
     };
   },
   async created() {
@@ -115,13 +138,13 @@ export default {
     d3.scene.add(d3.lights.dir);
 
     const cursorGeometry = new THREE.PlaneGeometry(1, 1);
-    const cursorMaterial = new THREE.MeshBasicMaterial({
+    d3.cursorMaterial = new THREE.MeshBasicMaterial({
       color: 0x156289,
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.9,
     });
-    d3.cursor = new THREE.Mesh(cursorGeometry, cursorMaterial);
+    d3.cursor = new THREE.Mesh(cursorGeometry, d3.cursorMaterial);
     d3.cursor.rotateX(Math.PI / 2);
     d3.cursor.position.set(
       this.cursor[0] + 0.5,
@@ -134,7 +157,7 @@ export default {
     d3.scene.add(d3.bbox);
 
     const mplaneGeometry = new THREE.PlaneGeometry(100, 100);
-    d3.mplane = new THREE.Mesh(mplaneGeometry, cursorMaterial);
+    d3.mplane = new THREE.Mesh(mplaneGeometry, d3.cursorMaterial);
     d3.mplane.layers.set(2);
     d3.mplane.rotateX(Math.PI / 2);
     d3.scene.add(d3.mplane);
@@ -143,7 +166,7 @@ export default {
     await this.loadModel("door");
     await this.loadModel("window");
     await this.loadModel("wall");
-    await this.loadModel("loongroof");
+    await this.loadModel("loongroof", 'longroof');
     await this.loadModel("platform");
     await this.loadModel("platformhole");
     await this.loadModel("ramp");
@@ -216,7 +239,11 @@ export default {
           break;
 
         case "Escape":
-          this.onDeselect();
+          if (d3.holo) {
+            this.onTool('select')
+          } else {
+            this.onDeselect();
+          }
           break;
 
         // tile moving
@@ -260,26 +287,26 @@ export default {
 
         // element creation
         case "KeyW":
-          this.addPart("wall");
+          this.onTool("wall");
           break;
 
         case "KeyF":
-          this.addPart("foundation");
+          this.onTool("foundation");
           break;
 
         case "KeyP":
-          this.addPart("platform");
+          this.onTool("platform");
           break;
         case "KeyH":
-          this.addPart("platformhole");
+          this.onTool("platformhole");
           break;
 
         case "KeyO":
-          this.addPart("door");
+          this.onTool("door");
           break;
 
         case "KeyI":
-          this.addPart("window");
+          this.onTool("window");
           break;
 
         // add more
@@ -315,9 +342,9 @@ export default {
       d3.controls.update(); // redundant
       d3.renderer.render(d3.scene, d3.camera);
     },
-    async loadModel(name) {
+    async loadModel(name, code) {
       const m = await load(name);
-      d3.models[name] = m;
+      d3.models[code || name] = m;
     },
     updateCursor(pos) {
       this.cursor = pos;
@@ -328,19 +355,25 @@ export default {
       );
       d3.lgrid.position.y = this.cursor[1] - 1;
       d3.mplane.position.y = this.cursor[1] - 1;
+      if (d3.holo) {
+        this.spMesh(d3.holo, this.tool, 0, false)
+      }
     },
-    addPart(part) {
+    addPart(part, rotation = 0, autoSelect = true) {
       const pm = ["rampup", "rampdown"].includes(part) ? "ramp" : part;
       if (!d3.models[pm]) return;
       const m = d3.models[pm].material.clone();
       m.transparent = true
       const mesh = new THREE.Mesh(d3.models[pm].geometry, m);
+      this.spMesh(mesh, part);
+      /*
       mesh.scale.set(0.5, 0.5, 0.5);
       mesh.position.set(
         this.cursor[0] + 0.5,
         this.cursor[1] - 1.5,
         this.cursor[2] + 0.5
       );
+      */
 
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -348,26 +381,53 @@ export default {
       mesh.layers.enable(1);
       d3.scene.add(mesh);
 
+      /*
       if (!["foundation", "platform", "platformhole"].includes(part))
         mesh.position.y += 1;
       if (part === "rampdown") mesh.position.y -= 1;
       if (part === "rampup") mesh.position.y -= 0.5;
       if (part === "stairs") mesh.position.y -= 0.5;
-      if (part === "loongroof") mesh.position.y -= 0.5;
+      if (part === "longroof") mesh.position.y -= 0.5;
       mesh.layers.enable(1);
       d3.scene.add(mesh);
+      */
+      for (let i = rotation; i > 0; i--)
+        mesh.rotateY(Math.PI / 2);
       this.construction[mesh.uuid] = {
         part,
         position: [...this.cursor],
-        rotation: 0,
+        rotation,
         color: "clear",
       };
+      if (!autoSelect) return mesh
       this.selection = mesh;
       d3.bbox.setFromObject(this.selection);
       d3.bbox.visible = true;
       this.lock = [...this.cursor];
+      return mesh
+    },
+    spMesh(m, part, shiftY = 0, doScale = true) {
+      if (doScale)
+        m.scale.set(0.5, 0.5, 0.5);
+      m.position.set(
+        this.cursor[0] + 0.5,
+        this.cursor[1] - 1.5 + shiftY,
+        this.cursor[2] + 0.5
+      );
+      if (!["foundation", "platform", "platformhole"].includes(part))
+        m.position.y += 1;
+      if (part === "rampdown") m.position.y -= 1;
+      if (part === "rampup") m.position.y -= 0.5;
+      if (part === "stairs") m.position.y -= 0.5;
+      if (part === "longroof") m.position.y -= 0.5;
     },
     rotateSelection() {
+      if (d3.holo) {
+        d3.holo.rotateY(Math.PI / 2);
+        this.holoR++
+        if (this.holoR >= 4) this.holoR -= 4
+        return
+      }
       if (!this.selection) {
         return;
       }
@@ -389,7 +449,48 @@ export default {
       d3.bbox.visible = false;
       this.lock = null;
     },
+    onTool(next) {
+      const last = this.tool
+      if (this.tool === next) {
+        if (next === 'select') return
+        return this.onTool('select')
+      }
+      this.tool = next
+      if (this.tool === 'select') {
+        if (d3.holo) {
+          removeObject3D(d3.holo)
+          d3.holo = null
+          this.holoR = 0
+        }
+        this.onDeselect()
+        d3.cursor.visible = true
+        return
+      }
+      const mod = this.tool === 'rampup' || this.tool === 'rampdown'
+        ? 'ramp'
+        : this.tool
+      if (!d3.models[mod]) {
+        console.warn('unknown tool', mod)
+        return
+      }
+      d3.cursor.visible = false
+      if (d3.holo) removeObject3D(d3.holo)
+      const holoG = d3.models[mod].geometry.clone()
+      const holoM = d3.cursorMaterial.clone()
+      d3.holo = new THREE.Mesh(holoG, holoM)
+      if (last === 'select')
+        this.holoR = 0
+      else
+        for (let i = this.holoR; i > 0; i--)
+          d3.holo.rotateY(Math.PI / 2)
+      this.spMesh(d3.holo, this.tool, -1)
+      d3.scene.add(d3.holo)
+    },
     onClick(event) {
+      if (d3.holo) {
+        this.addPart(this.tool, this.holoR, false)
+        return;
+      }
       // const raycaster = new THREE.Raycaster();
       d3.raycaster.layers.set(1);
       const pointer = new THREE.Vector2();
@@ -409,11 +510,11 @@ export default {
           this.selection = intersects[0].object;
           d3.bbox.setFromObject(this.selection);
           d3.bbox.visible = true;
-          this.lock = [...this.cursor];
+          // this.lock = [...this.cursor];
         }
       } else {
         if (!this.lock) this.lock = [...this.cursor];
-        else this.lock = null;
+        // else this.lock = null;
       }
     },
     onMove(event) {
@@ -500,9 +601,8 @@ export default {
       this.reset();
       Object.values(json.construction).forEach((p) => {
         this.updateCursor(p.position);
-        this.addPart(p.part);
+        this.addPart(p.part, p.rotation);
         this.setColor(p.color);
-        for (let i = p.rotation; i > 0; i--) this.rotateSelection();
       });
       this.hiddenFloors = [...json.floors];
       this.setFloors();
@@ -530,10 +630,25 @@ export default {
   <div class="home wh-100">
     <div class="view-3d wh-100 position-relative" ref="v3d">
       <canvas @click="onClick" ref="canvas" @mousemove="onMove" />
-      <UiPanel :construction="construction" :selected="selection ? selection.uuid : null" @remove="removeSelection"
-        @rotate="rotateSelection" @deselect="onDeselect" @add-part="addPart" :cursor="cursor" @color="setColor"
-        @save="save" @load-file="loadFile" @toggle-floor="toggleFloor" @update-pos="updateCursor" ref="uiPanel" />
+      <UiPanel :floors="hiddenFloors" :construction="construction" :selected="selection ? selection.uuid : null"
+        @remove="removeSelection" @rotate="rotateSelection" @deselect="onDeselect" @add-part="addPart" :cursor="cursor"
+        @color="setColor" @save="save" @load-file="loadFile" @toggle-floor="toggleFloor" @update-pos="updateCursor"
+        ref="uiPanel" @reset="reset" @up="moveCursor(0, 1, 0)" @down="moveCursor(0, -1, 0)" />
       <KeyHelpmer />
+      <ToolBar :selection="selection" :tool="tool" @tool="onTool" @color="setColor" />
+      <div class="about">abrakadobr 2025 for FREEDOM DayZ. with contribution by Vlad Kobranov</div>
     </div>
   </div>
 </template>
+
+<style>
+.about {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  font-size: 11px;
+  font-family: 'monospace';
+  font-weight: bold;
+  color: #156289;
+}
+</style>
