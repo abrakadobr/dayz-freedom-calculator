@@ -166,7 +166,145 @@ export default {
 
     d3.raycaster = new THREE.Raycaster();
   },
+  mounted() {
+    window.addEventListener("keydown", this.onKeyDown);
+    window.addEventListener("resize", this.onWindowResize);
+  },
+
+  beforeUnmount() {
+    window.removeEventListener("keydown", this.onKeyDown);
+    window.removeEventListener("resize", this.onWindowResize);
+  },
   methods: {
+    onWindowResize() {
+      const rect = this.$refs.v3d.getBoundingClientRect();
+      d3.renderer.setSize(rect.width, rect.height);
+      d3.camera.aspect = rect.width / rect.height;
+      d3.camera.updateProjectionMatrix();
+    },
+    onKeyDown(event) {
+      if (
+        event.target.tagName === "INPUT" ||
+        event.target.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+      const preventDefaultKeys = [
+        "Delete",
+        "Backspace",
+        // "KeyR",
+        // "KeyW",
+        // "KeyA",
+        // "KeyS",
+        // "KeyD",
+      ];
+      if (preventDefaultKeys.includes(event.code)) {
+        event.preventDefault();
+      }
+      switch (event.code) {
+        case "Delete":
+        case "Backspace":
+        case "KeyD":
+          this.removeSelection();
+          break;
+
+        case "KeyR":
+          this.rotateSelection();
+          break;
+
+        case "Escape":
+          this.onDeselect();
+          break;
+
+        // tile moving
+        case "ArrowUp":
+          this.moveCursor(0, 0, -1);
+          break;
+
+        case "ArrowDown":
+          this.moveCursor(0, 0, 1);
+          break;
+
+        case "ArrowLeft":
+          this.moveCursor(-1, 0, 0);
+          break;
+
+        case "ArrowRight":
+          this.moveCursor(1, 0, 0);
+          break;
+
+        // elevation / floors
+        case "KeyQ":
+          this.moveCursor(0, 1, 0);
+          break;
+
+        case "KeyE":
+          this.moveCursor(0, -1, 0);
+          break;
+
+        // colors
+        case "Digit1":
+          this.setColor("clear");
+          break;
+
+        case "Digit2":
+          this.setColor("red");
+          break;
+
+        case "Digit3":
+          this.setColor("green");
+          break;
+
+        // element creation
+        case "KeyW":
+          this.addPart("wall");
+          break;
+
+        case "KeyF":
+          this.addPart("foundation");
+          break;
+
+        case "KeyP":
+          this.addPart("platform");
+          break;
+
+        case "KeyO":
+          this.addPart("door");
+          break;
+
+        case "KeyI":
+          this.addPart("window");
+          break;
+
+        // add more
+
+        // save
+        case "KeyC":
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            this.save();
+          }
+          break;
+        // load
+        case "KeyL":
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            this.$refs.uiPanel.$refs.fileInput.click();
+
+            // this.loadFile();
+          }
+          break;
+      }
+    },
+    moveCursor(dx, dy, dz) {
+      // if (this.lock) return;
+      const newCursor = [
+        this.cursor[0] + dx,
+        this.cursor[1] + dy,
+        this.cursor[2] + dz,
+      ];
+      this.updateCursor(newCursor);
+    },
     animate() {
       d3.controls.update(); // redundant
       d3.renderer.render(d3.scene, d3.camera);
@@ -377,12 +515,7 @@ export default {
 <template>
   <div class="home wh-100">
     <div class="view-3d wh-100 position-relative" ref="v3d">
-      <canvas
-        @click="onClick"
-        ref="canvas"
-        class="wh-100"
-        @mousemove="onMove"
-      />
+      <canvas @click="onClick" ref="canvas" @mousemove="onMove" />
       <UiPanel
         :construction="construction"
         :selected="selection ? selection.uuid : null"
@@ -396,6 +529,7 @@ export default {
         @load-file="loadFile"
         @toggle-floor="toggleFloor"
         @update-pos="updateCursor"
+        ref="uiPanel"
       />
     </div>
   </div>
