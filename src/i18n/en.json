@@ -1,0 +1,55 @@
+{
+  "lang": {
+    "en": "En",
+    "ru": "Ru",
+    "ukr": "Ukr"
+  },
+  "keys": {
+    "button": "Hot Keys",
+    "hide": "Hide",
+    "saveload": "Save/Load",
+    "save": "save",
+    "load": "load",
+    "navigation": "Navigation",
+    "movexz": "move X/Z",
+    "updown": "up/down Y",
+    "rotate": "rotate",
+    "deselect": "deselect",
+    "delete": "delete",
+    "colors": "Colors",
+    "clearredgreen": "clear/red/green",
+    "creation": "Creation"
+  },
+  "tools": {
+    "select": "Select",
+    "foundation": "Foundation",
+    "platform": "Platform",
+    "platformhole": "Hatch Platform",
+    "stairs": "Stairs",
+    "wall": "Wall",
+    "window": "Window",
+    "door": "Door",
+    "rampup": "Ramp Up",
+    "rampdown": "Ramp Down",
+    "smallroof": "Small Roof",
+    "longroof": "Long Roof",
+    "clear": "Clear",
+    "red": "Red",
+    "green": "Green"
+  },
+  "ui": {
+    "floor": "{num} floor",
+    "floors": "Show/hide floors",
+    "cad": "2D Plans",
+    "planks": "Planks",
+    "nails": "Nails",
+    "codelocks": "Codelocks",
+    "wpup": "Working plane up",
+    "wpdown": "Working plane down",
+    "position": "Position X/Y/Z",
+    "save": "Save to file",
+    "load": "Load from file",
+    "reset": "New",
+    "lang": "Locale"
+  }
+}

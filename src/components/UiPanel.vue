@@ -4,6 +4,7 @@ import FloorsIcon from '@/assets/icons/floors.svg'
 import NailsIcon from '@/assets/icons/nails.svg'
 import PlanksIcon from '@/assets/icons/planks.svg'
 import CodelockIcon from '@/assets/icons/codelock.svg'
+import CadIcon from '@/assets/icons/cad.svg'
 
 import SaveIcon from '@/assets/icons/save.svg'
 import LoadIcon from '@/assets/icons/load.svg'
@@ -12,12 +13,14 @@ import NewIcon from '@/assets/icons/new.svg'
 import UpIcon from '@/assets/icons/up.svg'
 import DownIcon from '@/assets/icons/down.svg'
 
+
 export default {
   name: "UiPanel",
   emits: [
     "addPart",
     "updatePos",
     "remove",
+    "rotate",
     "deselect",
     "color",
     "toggleFloor",
@@ -25,7 +28,8 @@ export default {
     "loadFile",
     "reset",
     "up",
-    "down"
+    "down",
+    "cad"
   ],
   components: {
     UpIcon,
@@ -38,6 +42,7 @@ export default {
     PlanksIcon,
     CodelockIcon,
     FloorsIcon,
+    CadIcon
   },
   props: {
     cursor: {
@@ -118,8 +123,8 @@ export default {
         const l = p.position[1];
         if (!ret.includes(l)) ret.push(l);
       });
-      return ret;
-    },
+      return ret.sort();
+    }
   },
   methods: {
     ceil(num, b) {
@@ -128,6 +133,13 @@ export default {
     toggleFloor(l) {
       this.$emit("toggleFloor", l);
     },
+    toggleLocale() {
+      const list = this.$i18n.availableLocales;
+      const current = list.findIndex((l) => l === this.$i18n.locale);
+      const next = current === list.length - 1 ? 0 : current + 1;
+      this.$i18n.locale = list[next]
+      localStorage.setItem('locale', this.$i18n.locale)
+    }
   },
 };
 </script>
@@ -135,7 +147,7 @@ export default {
 <template>
   <div class="ui-panel">
     <div class="tool-group">
-      <div class="tool-button">
+      <div :title="$t('ui.floors')" class="tool-button">
         <FloorsIcon />
       </div>
       <template v-for="l of layers" :key="l">
@@ -143,38 +155,42 @@ export default {
           {{ l }}
         </button>
       </template>
+      <button :title="$t('ui.cad')" @click="$emit('cad')" class="tool-button" :class="{ 'selected': layers.length }"
+        :disabled="!layers.length">
+        <CadIcon />
+      </button>
     </div>
     <div class="tool-group">
-      <div class="tool-button">
+      <div :title="$t('ui.planks')" class="tool-button">
         <PlanksIcon />
       </div>
-      <div class="tool-button selected tool-button-w2">
+      <div :title="$t('ui.planks')" class="tool-button selected tool-button-w2">
         {{ resources.planks }}
       </div>
-      <div class="tool-button">
+      <div :title="$t('ui.nails')" class="tool-button">
         <NailsIcon />
       </div>
-      <div class="tool-button selected tool-button-w2">
+      <div :title="$t('ui.nails')" class="tool-button selected tool-button-w2">
         {{ resources.nails }}
       </div>
-      <div class="tool-button">
+      <div :title="$t('ui.codelocks')" class="tool-button">
         <CodelockIcon />
       </div>
-      <div class="tool-button selected tool-button-w2">
+      <div :title="$t('ui.codelocks')" class="tool-button selected tool-button-w2">
         {{ resources.codelocks }}
       </div>
     </div>
   </div>
   <div class="bottom-panel">
     <div class="tool-group">
-      <button @click="$emit('up')" class="tool-button">
+      <button :title="$t('ui.wpup')" @click="$emit('up')" class="tool-button">
         <UpIcon />
       </button>
-      <button @click="$emit('down')" class="tool-button">
+      <button :title="$t('ui.wpdown')" @click="$emit('down')" class="tool-button">
         <DownIcon />
       </button>
     </div>
-    <div class="tool-group">
+    <div :title="$t('ui.position')" class="tool-group">
       <div class="tool-button">
         <CursorIcon />
       </div>
@@ -189,16 +205,21 @@ export default {
       </div>
     </div>
     <div class="tool-group">
-      <button @click="$emit('save')" class="tool-button">
+      <button :title="$t('ui.save')" @click="$emit('save')" class="tool-button">
         <SaveIcon />
       </button>
-      <label for="load-file" class="tool-button">
+      <label :title="$t('ui.load')" for="load-file" class="tool-button">
         <LoadIcon />
         <input type="file" id="load-file" class="d-none" accept=".json" ref="fileInput"
           @change="$emit('loadFile', $event.target.files[0])" />
       </label>
-      <button @click="$emit('reset')" class="tool-button">
+      <button :title="$t('ui.reset')" @click="$emit('reset')" class="tool-button">
         <NewIcon />
+      </button>
+    </div>
+    <div class="tool-group">
+      <button :title="$t('ui.lang')" @click="toggleLocale" class="tool-button">
+        {{$t('lang.'+$i18n.locale)}}
       </button>
     </div>
   </div>
