@@ -11,12 +11,12 @@ const waitms = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const loader = new GLTFLoader();
 const jclone = (v) => JSON.parse(JSON.stringify(v));
 
-const load = (name) =>
+const load = (name, singleChild = true) =>
   new Promise((resolve) => {
     loader.load(
       "/glb/" + name + ".glb",
       (gltf) => {
-        const c = gltf.scene.children[0];
+        const c = singleChild ? gltf.scene.children[0] : gltf.scene
         resolve(c);
       },
       undefined,
@@ -44,6 +44,27 @@ const removeObject3D = object3D => {
   }
   object3D.removeFromParent(); // the parent might be the scene or another Object3D, but it is sure to be removed this way
   return true;
+}
+
+const canvas2img = canvas => new Promise(resolve => {
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob)
+    resolve(url)
+  })
+})
+
+const SHIFTS = {
+  foundation: 0.5,
+  platform: -0.55,
+  platformhole: -0.55,
+  stairs: +0.5,
+  wall: +0.5,
+  window: +0.5,
+  door: +0.5,
+  rampup: +0.45,
+  rampdown: -0.05,
+  longroof: 0.5,
+  smallroof: 0.5
 }
 
 const d3 = {
@@ -76,6 +97,7 @@ export default {
       construction: {},
       hiddenFloors: [],
       holoR: 0,
+      cads: {}
     };
   },
   async created() {
@@ -162,16 +184,8 @@ export default {
     d3.mplane.rotateX(Math.PI / 2);
     d3.scene.add(d3.mplane);
 
-    await this.loadModel("foundation");
-    await this.loadModel("door");
-    await this.loadModel("window");
-    await this.loadModel("wall");
-    await this.loadModel("loongroof", 'longroof');
-    await this.loadModel("platform");
-    await this.loadModel("platformhole");
-    await this.loadModel("ramp");
-    await this.loadModel("smallroof");
-    await this.loadModel("stairs");
+    await this.loadModels()
+    await this.loadCads()
 
     d3.materials.wood = new THREE.MeshStandardMaterial({
       color: 0x9e8163,
@@ -342,9 +356,47 @@ export default {
       d3.controls.update(); // redundant
       d3.renderer.render(d3.scene, d3.camera);
     },
+    async loadModels() {
+      const modulus = await load("modulus", false);
+      d3.models['foundation'] = modulus.children.find(c => c.name === 'foundation');
+      d3.models["door"] = modulus.children.find(c => c.name === 'door')
+      d3.models["window"] = modulus.children.find(c => c.name === 'window')
+      d3.models["wall"] = modulus.children.find(c => c.name === 'wall')
+      d3.models['longroof'] = modulus.children.find(c => c.name === 'roof_long')
+      d3.models["smallroof"] = modulus.children.find(c => c.name === 'roof_short')
+      d3.models["platform"] = modulus.children.find(c => c.name === 'platform')
+      d3.models["platformhole"] = modulus.children.find(c => c.name === 'hatch')
+      d3.models["ramp"] = modulus.children.find(c => c.name === 'ramp')
+      d3.models["stairs"] = modulus.children.find(c => c.name === 'stairs')
+      console.log(d3.models)
+    },
     async loadModel(name, code) {
       const m = await load(name);
       d3.models[code || name] = m;
+    },
+    async loadCads() {
+      this.cads.foundation = await this.loadCad('foundation')
+      this.cads.platform = await this.loadCad('platform')
+      this.cads.platformhole = await this.loadCad('platformhole')
+      this.cads.wall = await this.loadCad('wall')
+      this.cads.door = await this.loadCad('door')
+      this.cads.window = await this.loadCad('window')
+      this.cads.stairs = await this.loadCad('stairs')
+      this.cads.longroof = await this.loadCad('longroof')
+      this.cads.smallroof = await this.loadCad('smallroof')
+      this.cads.rampup = await this.loadCad('rampup')
+      this.cads.rampdown = await this.loadCad('rampdown')
+    },
+    loadCad(part) {
+      const img = document.createElement("img");
+      img.width = 128;
+      img.height = 128;
+      return new Promise(resolve => {
+        img.onload = () => {
+          resolve(img)
+        }
+        img.src = "./svg/cad-" + part + ".svg";
+      })
     },
     updateCursor(pos) {
       this.cursor = pos;
@@ -362,9 +414,10 @@ export default {
     addPart(part, rotation = 0, autoSelect = true) {
       const pm = ["rampup", "rampdown"].includes(part) ? "ramp" : part;
       if (!d3.models[pm]) return;
-      const m = d3.models[pm].material.clone();
-      m.transparent = true
-      const mesh = new THREE.Mesh(d3.models[pm].geometry, m);
+      // const m = d3.models[pm].material.clone();
+      // m.transparent = true
+      // const mesh = new THREE.Mesh(d3.models[pm].geometry, m);
+      const mesh = this.getPart(pm);
       this.spMesh(mesh, part);
       /*
       mesh.scale.set(0.5, 0.5, 0.5);
@@ -378,7 +431,7 @@ export default {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
 
-      mesh.layers.enable(1);
+      //mesh.layers.enable(1);
       d3.scene.add(mesh);
 
       /*
@@ -409,17 +462,24 @@ export default {
     spMesh(m, part, shiftY = 0, doScale = true) {
       if (doScale)
         m.scale.set(0.5, 0.5, 0.5);
+      if (SHIFTS[part]) shiftY += SHIFTS[part]
+      // if (part === 'stairs')
+      // m.rotateY(-Math.PI / 2)
+      if (['wall', 'door', 'window'].includes(part))
+        m.rotateY(-Math.PI)
       m.position.set(
         this.cursor[0] + 0.5,
-        this.cursor[1] - 1.5 + shiftY,
+        this.cursor[1] - 1.5 + shiftY, // + (this.cursor[1] - 1) * 0.1,
         this.cursor[2] + 0.5
       );
+      /*
       if (!["foundation", "platform", "platformhole"].includes(part))
         m.position.y += 1;
       if (part === "rampdown") m.position.y -= 1;
       if (part === "rampup") m.position.y -= 0.5;
       if (part === "stairs") m.position.y -= 0.5;
       if (part === "longroof") m.position.y -= 0.5;
+      */
     },
     rotateSelection() {
       if (d3.holo) {
@@ -456,13 +516,13 @@ export default {
         return this.onTool('select')
       }
       this.tool = next
+      this.onDeselect()
       if (this.tool === 'select') {
         if (d3.holo) {
           removeObject3D(d3.holo)
           d3.holo = null
           this.holoR = 0
         }
-        this.onDeselect()
         d3.cursor.visible = true
         return
       }
@@ -475,9 +535,8 @@ export default {
       }
       d3.cursor.visible = false
       if (d3.holo) removeObject3D(d3.holo)
-      const holoG = d3.models[mod].geometry.clone()
-      const holoM = d3.cursorMaterial.clone()
-      d3.holo = new THREE.Mesh(holoG, holoM)
+      console.log('clone mod', mod, d3.models[mod])
+      d3.holo = this.getPart(mod, d3.cursorMaterial)
       if (last === 'select')
         this.holoR = 0
       else
@@ -485,6 +544,35 @@ export default {
           d3.holo.rotateY(Math.PI / 2)
       this.spMesh(d3.holo, this.tool, -1)
       d3.scene.add(d3.holo)
+    },
+    getPart(part, mat = null) {
+      let ret = null
+      if (part === 'smallroof' || part === 'longroof') {
+        const holoG0 = d3.models[part].children[0].geometry.clone()
+        const holoG1 = d3.models[part].children[1].geometry.clone()
+        ret = new THREE.Group()
+        const mat1 = mat ? mat.clone() : d3.models[part].children[0].material.clone()
+        const mat2 = mat ? mat.clone() : d3.models[part].children[1].material.clone()
+        if (!mat) {
+          mat1.transparent = true
+          mat2.transparent = true
+        }
+        const m1 = new THREE.Mesh(holoG0, mat1)
+        const m2 = new THREE.Mesh(holoG1, mat2)
+        if (!mat) {
+          m1.layers.enable(1)
+          m2.layers.enable(1)
+        }
+        ret.add(m1)
+        ret.add(m2)
+      } else {
+        const holoG = d3.models[part].geometry.clone()
+        const material = mat ? mat.clone() : d3.models[part].material.clone()
+        if (!mat) material.transparent = true
+        ret = new THREE.Mesh(holoG, material)
+        if (!mat) ret.layers.enable(1)
+      }
+      return ret
     },
     onClick(event) {
       if (d3.holo) {
@@ -512,8 +600,8 @@ export default {
           d3.bbox.visible = true;
           // this.lock = [...this.cursor];
         }
-      } else {
-        if (!this.lock) this.lock = [...this.cursor];
+        // } else {
+        // if (!this.lock) this.lock = [...this.cursor];
         // else this.lock = null;
       }
     },
@@ -540,6 +628,7 @@ export default {
       else m.emissiveIntensity = 0.1
       if (color === 'green') m.emissive = new THREE.Color(0x00ff00)
       if (color === 'red') m.emissive = new THREE.Color(0xff0000)
+      this.construction[this.selection.uuid].color = color;
       /*
       let m = d3.materials.wood;
       if (color === "clear") m = d3.materials.wood;
@@ -617,6 +706,74 @@ export default {
       });
       this.updateCursor([0, 1, 0]);
     },
+    async cad() {
+      const dimensions = {
+        x: null, y: null, z: null,
+        layers: {}
+      }
+      Object.values(this.construction).forEach((p) => {
+        if (!dimensions.x) dimensions.x = { min: p.position[0], max: p.position[0] }
+        if (!dimensions.y) dimensions.y = { min: p.position[1], max: p.position[1] }
+        if (!dimensions.z) dimensions.z = { min: p.position[2], max: p.position[2] }
+        dimensions.x.min = Math.min(dimensions.x.min, p.position[0])
+        dimensions.x.max = Math.max(dimensions.x.max, p.position[0])
+        dimensions.y.min = Math.min(dimensions.y.min, p.position[1])
+        dimensions.y.max = Math.max(dimensions.y.max, p.position[1])
+        dimensions.z.min = Math.min(dimensions.z.min, p.position[2])
+        dimensions.z.max = Math.max(dimensions.z.max, p.position[2])
+        if (!dimensions.layers[`l${p.position[1]}`])
+          dimensions.layers[`l${p.position[1]}`] = []
+        dimensions.layers[`l${p.position[1]}`].push(p)
+      })
+      console.log('CAD', dimensions)
+      const ROT = {
+        door: 3,
+        wall: 3,
+        window: 3
+      }
+      const imgW = dimensions.x.max - dimensions.x.min + 3
+      const imgH = dimensions.z.max - dimensions.z.min + 3
+      const floors = []
+      for (let f = dimensions.y.min; f <= dimensions.y.max; f++) {
+        const floor = document.createElement('canvas')
+        floor.width = imgW * 128
+        floor.height = imgH * 128
+        const ctx = floor.getContext('2d')
+        Object.values(this.construction).forEach(p => {
+          if (p.position[1] !== f) return
+          if (!this.cads[p.part]) return
+          const dx = (p.position[0] - dimensions.x.min + 1) * 128
+          const dy = (p.position[2] - dimensions.z.min + 1) * 128
+          ctx.translate(dx + 64, dy + 64)
+          const pr = ROT[p.part] || 0
+          for (let r = 0; r <= p.rotation + pr; r++)
+            ctx.rotate(-Math.PI / 2)
+          console.log('draw at', p.part, p.color, dx, dy)
+          ctx.drawImage(this.cads[p.part], -64, -64)
+          if (p.color === 'green') {
+            ctx.fillStyle = '#00FF0033'
+            ctx.fillRect(-64, -64, 128, 128)
+          }
+          if (p.color === 'red') {
+            ctx.fillStyle = '#FF000033'
+            ctx.fillRect(-64, -64, 128, 128)
+          }
+          ctx.fillStyle = '#FFFFFF'
+          ctx.setTransform(1, 0, 0, 1, 0, 0)
+        })
+        // document.body.appendChild(floor)
+        // const img = floor.toDataURL('image/png')
+        // const url = URL.createObjectURL(new Blob([img], { type: 'image/png' }))
+        // window.open(url, '_blank')
+        ctx.fillStyle = '#000000'
+        ctx.font = '32px monospace'
+        ctx.fillText(this.$t('ui.floor', { num: f }), 64, 64)
+        floors.push(floor)
+      }
+      const urls = await Promise.all(floors.map(f => canvas2img(f)))
+      urls.forEach(url => window.open(url, '_blank'))
+      console.log('floors', floors, urls)
+    }
   },
   watch: {
     layer(next) {
@@ -632,11 +789,12 @@ export default {
       <canvas @click="onClick" ref="canvas" @mousemove="onMove" />
       <UiPanel :floors="hiddenFloors" :construction="construction" :selected="selection ? selection.uuid : null"
         @remove="removeSelection" @rotate="rotateSelection" @deselect="onDeselect" @add-part="addPart" :cursor="cursor"
-        @color="setColor" @save="save" @load-file="loadFile" @toggle-floor="toggleFloor" @update-pos="updateCursor"
-        ref="uiPanel" @reset="reset" @up="moveCursor(0, 1, 0)" @down="moveCursor(0, -1, 0)" />
+        @color="setColor" @cad="cad" @save="save" @load-file="loadFile" @toggle-floor="toggleFloor"
+        @update-pos="updateCursor" ref="uiPanel" @reset="reset" @up="moveCursor(0, 1, 0)"
+        @down="moveCursor(0, -1, 0)" />
       <KeyHelpmer />
       <ToolBar :selection="selection" :tool="tool" @tool="onTool" @color="setColor" />
-      <div class="about">abrakadobr 2025 for FREEDOM DayZ. with contribution by Vlad Kobranov</div>
+      <div class="about">abrakadobr 2025 for FREEDOM DayZ. 3D models and lights by Vlad Kobranov</div>
     </div>
   </div>
 </template>
