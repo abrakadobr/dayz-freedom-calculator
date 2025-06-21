@@ -105,12 +105,8 @@ export default {
     d3.scene = new THREE.Scene();
     d3.scene.background = new THREE.Color(0x666666);
     const rect = this.$refs.v3d.getBoundingClientRect();
-    d3.camera = new THREE.PerspectiveCamera(
-      50,
-      rect.width / rect.height,
-      0.1,
-      1000
-    );
+    d3.camera = new THREE.PerspectiveCamera(50, rect.width / rect.height, 0.1, 100);
+
     d3.camera.position.x = 5;
     d3.camera.position.z = 5;
     d3.camera.position.y = 5;
@@ -124,6 +120,7 @@ export default {
 
     d3.renderer.shadowMap.enabled = true;
     d3.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    d3.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     d3.renderer.setSize(rect.width, rect.height);
     d3.renderer.setAnimationLoop(() => this.animate());
@@ -137,15 +134,19 @@ export default {
     d3.controls = new OrbitControls(d3.camera, this.$refs.canvas);
     d3.controls.target.set(0, 0, 0);
 
+    // Ambient light
     d3.lights.ambient = new THREE.AmbientLight(0xffffff, 0.6);
     d3.scene.add(d3.lights.ambient);
-    d3.lights.hemi = new THREE.HemisphereLight(0xddaaff, 0x564345, 0.8);
+
+    // Hemisphere light
+    d3.lights.hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.8);
     d3.scene.add(d3.lights.hemi);
 
-    // directional light
-    d3.lights.dir = new THREE.DirectionalLight(0xffffff, 2);
+    // Directional light
+    d3.lights.dir = new THREE.DirectionalLight(0xffffff, 2.5); 
     d3.lights.dir.position.set(10, 20, 10);
     d3.lights.dir.castShadow = true;
+    d3.lights.dir.shadow.bias = -0.005;
 
     // SHADOW MAP settings
     d3.lights.dir.shadow.mapSize.width = 2048;
@@ -358,17 +359,24 @@ export default {
     },
     async loadModels() {
       const modulus = await load("modulus", false);
-      d3.models['foundation'] = modulus.children.find(c => c.name === 'foundation');
-      d3.models["door"] = modulus.children.find(c => c.name === 'door')
-      d3.models["window"] = modulus.children.find(c => c.name === 'window')
-      d3.models["wall"] = modulus.children.find(c => c.name === 'wall')
-      d3.models['longroof'] = modulus.children.find(c => c.name === 'roof_long')
-      d3.models["smallroof"] = modulus.children.find(c => c.name === 'roof_short')
-      d3.models["platform"] = modulus.children.find(c => c.name === 'platform')
-      d3.models["platformhole"] = modulus.children.find(c => c.name === 'hatch')
-      d3.models["ramp"] = modulus.children.find(c => c.name === 'ramp')
-      d3.models["stairs"] = modulus.children.find(c => c.name === 'stairs')
-      console.log(d3.models)
+      
+      if (modulus.children[0]?.material?.map) {
+        modulus.children[0].material.map.anisotropy = d3.renderer.capabilities.getMaxAnisotropy();
+        modulus.children[0].material.map.needsUpdate = true;
+      }
+
+      d3.models = {
+        foundation: modulus.children.find(c => c.name === 'foundation'),
+        door: modulus.children.find(c => c.name === 'door'),
+        window: modulus.children.find(c => c.name === 'window'),
+        wall: modulus.children.find(c => c.name === 'wall'),
+        longroof: modulus.children.find(c => c.name === 'roof_long'),
+        smallroof: modulus.children.find(c => c.name === 'roof_short'),
+        platform: modulus.children.find(c => c.name === 'platform'),
+        platformhole: modulus.children.find(c => c.name === 'hatch'),
+        ramp: modulus.children.find(c => c.name === 'ramp'),
+        stairs: modulus.children.find(c => c.name === 'stairs')
+      };
     },
     async loadModel(name, code) {
       const m = await load(name);
