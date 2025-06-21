@@ -418,6 +418,8 @@ export default {
       // m.transparent = true
       // const mesh = new THREE.Mesh(d3.models[pm].geometry, m);
       const mesh = this.getPart(pm);
+      if (['wall', 'door', 'window'].includes(part))
+        mesh.rotateY(-Math.PI)
       this.spMesh(mesh, part);
       /*
       mesh.scale.set(0.5, 0.5, 0.5);
@@ -465,8 +467,8 @@ export default {
       if (SHIFTS[part]) shiftY += SHIFTS[part]
       // if (part === 'stairs')
       // m.rotateY(-Math.PI / 2)
-      if (['wall', 'door', 'window'].includes(part))
-        m.rotateY(-Math.PI)
+      // if (['wall', 'door', 'window'].includes(part))
+      // m.rotateY(-Math.PI)
       m.position.set(
         this.cursor[0] + 0.5,
         this.cursor[1] - 1.5 + shiftY, // + (this.cursor[1] - 1) * 0.1,
