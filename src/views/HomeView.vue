@@ -539,6 +539,8 @@ export default {
       if (d3.holo) removeObject3D(d3.holo)
       console.log('clone mod', mod, d3.models[mod])
       d3.holo = this.getPart(mod, d3.cursorMaterial)
+      if (['wall', 'window', 'door'].includes(mod))
+        d3.holo.rotateY(-Math.PI)
       if (last === 'select')
         this.holoR = 0
       else
