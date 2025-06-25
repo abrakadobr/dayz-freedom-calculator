@@ -1,4 +1,5 @@
 // vue.svg.loader.js
+
 const SVGO = require("svgo");
 
 module.exports = (svg) => {
