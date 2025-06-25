@@ -120,6 +120,10 @@ export default {
     layers() {
       const ret = [];
       Object.values(this.construction).forEach((p) => {
+        if (!p.position) {
+          console.error('p.!position', p)
+          return
+        }
         const l = p.position[1];
         if (!ret.includes(l)) ret.push(l);
       });
@@ -219,7 +223,7 @@ export default {
     </div>
     <div class="tool-group">
       <button :title="$t('ui.lang')" @click="toggleLocale" class="tool-button">
-        {{$t('lang.'+$i18n.locale)}}
+        {{ $t('lang.' + $i18n.locale) }}
       </button>
     </div>
   </div>

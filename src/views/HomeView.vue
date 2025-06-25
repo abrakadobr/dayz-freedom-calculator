@@ -143,7 +143,7 @@ export default {
     d3.scene.add(d3.lights.hemi);
 
     // Directional light
-    d3.lights.dir = new THREE.DirectionalLight(0xffffff, 2.5); 
+    d3.lights.dir = new THREE.DirectionalLight(0xffffff, 2.5);
     d3.lights.dir.position.set(10, 20, 10);
     d3.lights.dir.castShadow = true;
     d3.lights.dir.shadow.bias = -0.005;
@@ -359,7 +359,7 @@ export default {
     },
     async loadModels() {
       const modulus = await load("modulus", false);
-      
+
       if (modulus.children[0]?.material?.map) {
         modulus.children[0].material.map.anisotropy = d3.renderer.capabilities.getMaxAnisotropy();
         modulus.children[0].material.map.needsUpdate = true;
@@ -545,7 +545,7 @@ export default {
       }
       d3.cursor.visible = false
       if (d3.holo) removeObject3D(d3.holo)
-      console.log('clone mod', mod, d3.models[mod])
+      // console.log('clone mod', mod, d3.models[mod])
       d3.holo = this.getPart(mod, d3.cursorMaterial)
       if (['wall', 'window', 'door'].includes(mod))
         d3.holo.rotateY(-Math.PI)
@@ -607,7 +607,13 @@ export default {
         ) {
           this.onDeselect();
         } else {
-          this.selection = intersects[0].object;
+          const p = intersects[0].object.parent;
+          if (p.isScene) {
+            this.selection = intersects[0].object;
+          }
+          if (p.isGroup) {
+            this.selection = intersects[0].object.parent;
+          }
           d3.bbox.setFromObject(this.selection);
           d3.bbox.visible = true;
           // this.lock = [...this.cursor];
@@ -633,14 +639,35 @@ export default {
         this.updateCursor([Math.floor(p.x), cur[1], Math.floor(p.z)]);
       }
     },
-    setColor(color) {
-      if (!this.selection) return;
-      const m = this.selection.material
+    _setColor(obj, color) {
+      const m = obj.material
+      if (!m) return
       if (color === "clear") m.emissiveIntensity = 0
       else m.emissiveIntensity = 0.1
       if (color === 'green') m.emissive = new THREE.Color(0x00ff00)
       if (color === 'red') m.emissive = new THREE.Color(0xff0000)
-      this.construction[this.selection.uuid].color = color;
+    },
+    setColor(color) {
+      if (!this.selection) return;
+      if (this.selection.material) {
+        this._setColor(this.selection, color)
+        // const m = this.selection.material
+        // // console.log(m, this.selection)
+        // if (color === "clear") m.emissiveIntensity = 0
+        // else m.emissiveIntensity = 0.1
+        // if (color === 'green') m.emissive = new THREE.Color(0x00ff00)
+        // if (color === 'red') m.emissive = new THREE.Color(0xff0000)
+        if (!this.construction[this.selection.uuid])
+          this.construction[this.selection.uuid] = {}
+        this.construction[this.selection.uuid].color = color;
+      } else {
+        if (this.selection.isGroup) {
+          // console.log('setColor', 'isGroup', this.selection.uuid, this.construction[this.selection.uuid])
+          this.selection.children.forEach((c) => {
+            this._setColor(c, color)
+          })
+        }
+      }
       /*
       let m = d3.materials.wood;
       if (color === "clear") m = d3.materials.wood;
@@ -649,11 +676,28 @@ export default {
       this.selection.material = m.clone();
       this.construction[this.selection.uuid].color = color;
       */
+      // this.construction[this.selection.uuid].color = color;
     },
     toggleFloor(l) {
       if (!this.hiddenFloors.includes(l)) this.hiddenFloors.push(l);
       else this.hiddenFloors = this.hiddenFloors.filter((v) => v !== l);
       this.setFloors();
+    },
+    _setOpacity(obj, val) {
+      if (!obj) return
+      if (obj.isGroup) {
+        obj.children.forEach((c) => {
+          this._setOpacity(c, val)
+        })
+      } else {
+        if (val) {
+          obj.layers.disable(1)
+          obj.material.opacity = 0.05
+        } else {
+          obj.layers.enable(1)
+          obj.material.opacity = 1
+        }
+      }
     },
     setFloors() {
       Object.keys(this.construction).forEach((id) => {
@@ -661,6 +705,8 @@ export default {
         const f = p.position[1];
         const part = d3.scene.getObjectByProperty("uuid", id);
         if (!part) return;
+        this._setOpacity(part, this.hiddenFloors.includes(f))
+        /*
         if (this.hiddenFloors.includes(f)) {
           part.layers.disable(1);
           part.material.opacity = 0.05;
@@ -668,6 +714,7 @@ export default {
           part.layers.enable(1);
           part.material.opacity = 1;
         }
+        */
       });
     },
     save() {
@@ -737,7 +784,7 @@ export default {
           dimensions.layers[`l${p.position[1]}`] = []
         dimensions.layers[`l${p.position[1]}`].push(p)
       })
-      console.log('CAD', dimensions)
+      // console.log('CAD', dimensions)
       const ROT = {
         door: 3,
         wall: 3,
@@ -760,7 +807,7 @@ export default {
           const pr = ROT[p.part] || 0
           for (let r = 0; r <= p.rotation + pr; r++)
             ctx.rotate(-Math.PI / 2)
-          console.log('draw at', p.part, p.color, dx, dy)
+          // console.log('draw at', p.part, p.color, dx, dy)
           ctx.drawImage(this.cads[p.part], -64, -64)
           if (p.color === 'green') {
             ctx.fillStyle = '#00FF0033'
@@ -784,7 +831,7 @@ export default {
       }
       const urls = await Promise.all(floors.map(f => canvas2img(f)))
       urls.forEach(url => window.open(url, '_blank'))
-      console.log('floors', floors, urls)
+      // console.log('floors', floors, urls)
     }
   },
   watch: {
